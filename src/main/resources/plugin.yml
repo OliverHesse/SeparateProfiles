@@ -1,0 +1,11 @@
+name: SeparateProfiles
+version: '0.1-Development'
+main: me.Lucent.SeparateProfiles
+api-version: '1.21'
+libraries:
+  - at.favre.lib:bcrypt:0.10.2
+commands:
+  login:
+    description: logs a user in
+  signup:
+    description: create a new user
