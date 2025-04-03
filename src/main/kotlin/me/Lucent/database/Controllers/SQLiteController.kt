@@ -7,34 +7,96 @@ import org.bukkit.entity.Player
 import org.bukkit.entity.Tameable
 import org.bukkit.inventory.ItemStack
 import org.bukkit.util.Vector
-import java.util.UUID
+import java.nio.charset.StandardCharsets
+import java.security.SecureRandom
+import java.util.*
 
 class SQLiteController {
 
     //functions used to retrieve data from db
+    //TODO Combine into one statement to reduce calls
+    //TODO store that data in a playerSaveDataClass
+    fun getUserLastLocation(username: String):Location?{
+        val stmtString = """
+            SELECT lastLocX,lastLocY,lastLocZ,lastLocWorld
+            FROM users
+            WHERE username = ?
+        """.trimIndent()
+        val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtString);
+        stmt.setString(1, username)
 
-    fun getUserLastLocation(player: Player):Location{
+        try{
+            val rs = stmt.executeQuery();
+            if(!rs.next()) throw NoSuchElementException("no location data found for player $username")
+            val world = separateProfiles.server.getWorld(rs.getString("lastLocWorld"))
+            return Location(world,rs.getDouble("lastLocX"),rs.getDouble("lastLocY"),rs.getDouble("lastLocZ"))
+        }catch (e:Exception){
+            separateProfiles.logger.severe("unable to get user $username location")
+            e.printStackTrace()
+        }
 
-        return Location(player.world,0.0,0.0,0.0)
+        return null
     }
 
-    fun getUserRespawnLocation(player: Player):Location?{
-        return player.respawnLocation!!;
+    fun getUserRespawnLocation(username: String):Location?{
+        val stmtString = """
+            SELECT spawnLocX,spawnLocY,spawnLocZ,spawnWorld,noSpawnLocation
+            FROM users
+            WHERE username = ?
+        """.trimIndent()
+        val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtString);
+        stmt.setString(1, username)
+
+        try{
+            val rs = stmt.executeQuery();
+            if(!rs.next()) throw NoSuchElementException("no respawn data found for player $username")
+            if(rs.getInt("noSpawnLocation") == 0) return null
+            val world = separateProfiles.server.getWorld(rs.getString("spawnWorld"))
+            return Location(world,rs.getDouble("spawnLocX"),rs.getDouble("spawnLocY"),rs.getDouble("spawnLocZ"))
+        }catch (e:Exception){
+            separateProfiles.logger.severe("unable to get user $username respawn location")
+            e.printStackTrace()
+        }
+
+        return null;
     }
 
-    fun getUserXP(player: Player):Int{
+    fun getUserXP(username: String):Int{
+        val stmtString = """
+            SELECT totalXP
+            FROM users
+            WHERE username = ?
+        """.trimIndent()
+        val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtString);
+        stmt.setString(1, username)
+
+        try{
+            val rs = stmt.executeQuery();
+            if(!rs.next()) throw NoSuchElementException("no XP data found for player $username")
+
+            return rs.getInt("totalXP")
+        }catch (e:Exception){
+            separateProfiles.logger.severe("unable to get user $username total XP")
+            e.printStackTrace()
+        }
         return 0
     }
 
+
+    //TODO IMPLEMENT
     fun getUsersTames(player: Player):List<Pair<String,UUID>>{
 
         return emptyList()
     }
 
+
+    //TODO IMPLEMENT
     fun getInventory(player: Player):List<Pair<Int,ItemStack>>{
         return emptyList()
     }
 
+
+    //TODO IMPLEMENT
     fun getEnderChest(player:Player):List<Pair<Int, ItemStack>>{
         return emptyList()
     }
@@ -44,7 +106,28 @@ class SQLiteController {
     fun verifyUser(username:String,password:String):Boolean{
 
 
-        return true
+        val stmtString = """
+            SELECT password,salt FROM users
+            WHERE username = ?
+        """.trimIndent()
+
+        val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtString)
+        stmt.setString(1,username)
+
+
+        try {
+            val rs = stmt.executeQuery()
+            if(!rs.next()) return false
+            val hashedPassword:ByteArray = rs.getBytes("password")
+            val hashed = BCrypt.withDefaults().hash(6,rs.getBytes("salt"),password.toByteArray(StandardCharsets.UTF_8)) ?: return false;
+            return hashed.contentEquals(hashedPassword);
+        }catch (e:Exception){
+            e.printStackTrace()
+            return false
+
+        }
+
+
     }
 
     fun validUsername(username:String):Boolean{
@@ -62,7 +145,7 @@ class SQLiteController {
             e.printStackTrace();
             return false
         }
-        return true;
+
     }
 
     //function used to update db
@@ -72,7 +155,10 @@ class SQLiteController {
     fun updatePlayerEnderChest(player: Player){}
 
     fun createNewUser(player:Player,username: String,password: String):Boolean{
-        val hashed = BCrypt.withDefaults().hashToString(12,password.toCharArray()) ?: return false;
+        val random: SecureRandom = SecureRandom()
+        val bytes = ByteArray(16)
+        random.nextBytes(bytes)
+        val hashed = BCrypt.withDefaults().hash(6,bytes,password.toByteArray(StandardCharsets.UTF_8))?: return false
         val loc = player.location.toVector()
         val locWorld = player.location.world.name
 
@@ -85,24 +171,25 @@ class SQLiteController {
 
         val commandString = """
             INSERT INTO users 
-            (username,password,lastLocX,lastLocY,lastLocZ,lastLocWorld,spawnLocX,spawnLocY,spawnLocZ,spawnWorld,noSpawnLocation,totalXP)
+            (username,password,salt,lastLocX,lastLocY,lastLocZ,lastLocWorld,spawnLocX,spawnLocY,spawnLocZ,spawnWorld,noSpawnLocation,totalXP)
             VALUES
-            (?,?,?,?,?,?,?,?,?,?,?,?)
+            (?,?,?,?,?,?,?,?,?,?,?,?,?)
         """.trimIndent()
 
         val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(commandString);
         stmt.setString(1,username);
-        stmt.setString(2,hashed)
-        stmt.setDouble(3, loc.x)
-        stmt.setDouble(4, loc.y)
-        stmt.setDouble(5, loc.z)
-        stmt.setString(6,locWorld);
-        stmt.setDouble(7,spawnLoc.x)
-        stmt.setDouble(8,spawnLoc.y)
-        stmt.setDouble(9,spawnLoc.z)
-        stmt.setString(10,spawnWorld)
-        stmt.setInt(11,spawnLocationExists)
-        stmt.setInt(12,totalXP)
+        stmt.setBytes(2,hashed)
+        stmt.setBytes(3,bytes)
+        stmt.setDouble(4, loc.x)
+        stmt.setDouble(5, loc.y)
+        stmt.setDouble(6, loc.z)
+        stmt.setString(7,locWorld);
+        stmt.setDouble(8,spawnLoc.x)
+        stmt.setDouble(9,spawnLoc.y)
+        stmt.setDouble(10,spawnLoc.z)
+        stmt.setString(11,spawnWorld)
+        stmt.setInt(12,spawnLocationExists)
+        stmt.setInt(13,totalXP)
         try{
             stmt.executeUpdate()
 
@@ -115,7 +202,50 @@ class SQLiteController {
         return true
     }
 
-    fun updateExistingUser(player: Player){}
+    fun updateExistingUser(player: Player):Boolean{
+        val name:String = separateProfiles.playerNameMap[player] ?: return false
+        val lastLoc = player.location.toVector();
+        val lastWorld = player.world.name
+
+        val spawnLocation = player.respawnLocation
+        val spawnLocationExists = if(spawnLocation == null) 0 else 1
+        val spawnLoc = spawnLocation?.toVector() ?: Vector(0,0,0)
+        val spawnWorld = spawnLocation?.world?.name ?: "N/A"
+
+        val totalXP = player.totalExperience
+
+        val stmtString ="""
+            UPDATE users
+            SET 
+            lastLocX = ?,lastLocY = ?,lastLocZ = ?,lastLocWorld = ?,
+            spawnLocX = ?,spawnLocY = ?,spawnLocZ = ?,spawnWorld =?,noSpawnLocation = ?,
+            totalXP = ?
+            WHERE username = ?
+        """.trimIndent()
+        val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtString)
+        stmt.setDouble(1,lastLoc.x)
+        stmt.setDouble(2,lastLoc.y)
+        stmt.setDouble(3,lastLoc.z)
+        stmt.setString(4,lastWorld)
+
+        stmt.setDouble(5,spawnLoc.x)
+        stmt.setDouble(6,spawnLoc.y)
+        stmt.setDouble(7,spawnLoc.z)
+        stmt.setString(8,spawnWorld)
+        stmt.setInt(9,spawnLocationExists)
+
+        stmt.setInt(10,totalXP)
+
+        stmt.setString(11,name)
+        try{
+            stmt.executeUpdate()
+        }catch (e:Exception){
+            separateProfiles.logger.severe("Unable to update basic user info for player $name")
+        }
+
+        return true
+
+    }
 
     fun addTame(tame: Tameable){}
 
@@ -128,7 +258,8 @@ class SQLiteController {
             CREATE TABLE IF NOT EXISTS users(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
-                password TEXT NOT NULL,
+                password BLOB NOT NULL,
+                salt BLOB NOT NULL,
                 lastLocX REAL NOT NULL,
                 lastLocY REAL NOT NULL,
                 lastLocZ REAL NOT NULL,

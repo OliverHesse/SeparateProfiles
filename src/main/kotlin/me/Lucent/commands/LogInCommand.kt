@@ -2,6 +2,7 @@ package me.Lucent.commands
 
 import me.Lucent.separateProfiles
 import net.kyori.adventure.text.Component
+import org.bukkit.GameMode
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
@@ -11,19 +12,21 @@ import org.bukkit.entity.Tameable
 
 class LogInCommand:CommandExecutor {
     override fun onCommand(sender: CommandSender, p1: Command, p2: String, args: Array<out String>): Boolean {
+
         if(sender !is Player) return true;
-        val player = sender as Player;
+        val player :Player = sender;
         if(args.size != 2){
             player.sendMessage("§cUsername and password cannot contain spaces")
             player.sendMessage("§cUsage: /login <username> <password>")
             return true
         }
+        separateProfiles.logger.info("Player is trying to log into ${args[0]}")
         val controller = separateProfiles.databaseHandler.controller
         if(!controller.verifyUser(args[0],args[1])){
             player.sendMessage("§cUsername or password incorrect")
             return true
         }
-        if(separateProfiles.playerNameMap[player] == null){
+        if(separateProfiles.playerNameMap[player] != null){
             player.sendMessage("§cAlready logged in to an account please log out first")
         }
         player.inventory.clear();
@@ -34,8 +37,24 @@ class LogInCommand:CommandExecutor {
 
 
         //load users location data
-        player.respawnLocation = controller.getUserRespawnLocation(player);
-        player.teleport(controller.getUserLastLocation(player));
+        player.respawnLocation = controller.getUserRespawnLocation(args[0]);
+        val location = controller.getUserLastLocation(args[0]);
+        if (location == null){
+            player.sendMessage("§cThere was a problem loading player ${args[0]} location")
+            return true
+        }
+        player.teleport(location);
+
+        //load xp data
+        player.totalExperience= controller.getUserXP(args[0])
+
+
+        player.walkSpeed = 0.1f
+        player.gameMode = GameMode.SURVIVAL;
+        separateProfiles.playerNameMap[player] = args[0]
+        //temp
+        player.sendMessage("§aLogged in to account ${args[0]}")
+        return true
 
         //load player inventory data
         val inventoryItems = controller.getInventory(player)
@@ -49,8 +68,7 @@ class LogInCommand:CommandExecutor {
         }
 
 
-        //load xp data
-        player.totalExperience= controller.getUserXP(player)
+
 
         //load tames data
         val tameData =controller.getUsersTames(player);

@@ -1,5 +1,6 @@
 package me.Lucent
 
+import me.Lucent.commands.LogInCommand
 import me.Lucent.commands.SignUpCommand
 import me.Lucent.database.DatabaseHandler
 import me.Lucent.listeners.PlayerListener
@@ -12,7 +13,7 @@ val separateProfiles :SeparateProfiles
 
 class SeparateProfiles : JavaPlugin() {
     lateinit var databaseHandler: DatabaseHandler
-    val playerNameMap:Map<Player,String> = HashMap()
+    val playerNameMap:HashMap<Player,String> = HashMap()
 
 
 
@@ -24,6 +25,7 @@ class SeparateProfiles : JavaPlugin() {
 
         server.pluginManager.registerEvents(PlayerListener(),this)
         getCommand("signup")!!.setExecutor(SignUpCommand())
+        getCommand("login")!!.setExecutor(LogInCommand())
         // Plugin startup logic
     }
 
