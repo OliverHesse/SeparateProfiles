@@ -3,12 +3,14 @@ package me.Lucent.commands
 import me.Lucent.separateProfiles
 import net.kyori.adventure.text.Component
 import org.bukkit.GameMode
+import org.bukkit.Material
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
 import org.bukkit.entity.Tameable
+import org.bukkit.inventory.ItemStack
 
 class LogInCommand:CommandExecutor {
     override fun onCommand(sender: CommandSender, p1: Command, p2: String, args: Array<out String>): Boolean {
@@ -54,6 +56,11 @@ class LogInCommand:CommandExecutor {
         separateProfiles.playerNameMap[player] = args[0]
         //temp
         player.sendMessage("§aLogged in to account ${args[0]}")
+
+        //TODO REMOVE ONLY FOR TESTING
+        player.inventory.addItem(ItemStack(Material.DIAMOND_HELMET,1))
+
+
         return true
 
         //load player inventory data

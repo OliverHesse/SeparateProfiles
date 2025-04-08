@@ -8,6 +8,11 @@ import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 
 
+//TODO Current Task:
+//TODO save player inventory
+
+
+
 val separateProfiles :SeparateProfiles
     get() = JavaPlugin.getPlugin(SeparateProfiles::class.java)
 

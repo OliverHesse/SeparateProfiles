@@ -150,7 +150,70 @@ class SQLiteController {
 
     //function used to update db
 
-    fun updatePlayerInventory(player: Player){}
+
+    //slot 36-39 is armour. slot 40 is off hand
+    fun updatePlayerInventory(player: Player):Boolean{
+        /*
+        *     userID INTEGER NOT NULL,
+                inventoryType TEXT NOT NULL,
+                serializedItemStack BLOB NOT NULL,
+                itemSlot INTEGER NOT NULL,
+                FOREIGN KEY(userID) REFERENCES users(id)
+            *
+         */
+        val username = separateProfiles.playerNameMap[player]
+        if(username == null){
+            separateProfiles.logger.severe("unable to update inventory for player ${player.displayName()} not logged in")
+            return false;
+        }
+
+        val con = separateProfiles.databaseHandler.sqlConnection
+        //get userId
+        val selectStmtString = """
+            SELECT id FROM users WHERE username = ?
+        """.trimIndent()
+        val selectStmt = con.prepareStatement(selectStmtString);
+        selectStmt.setString(1,username)
+        val rs = selectStmt.executeQuery();
+        if(!rs.next()) throw NoSuchElementException("no id found for player $username")
+
+        val userID = rs.getInt(1)
+
+        val deleteStmtString = """
+            DELETE FROM inventoryItems
+            WHERE userID = ? AND inventoryType = 'inventory'
+        """.trimIndent()
+        val deleteStmt = con.prepareStatement(deleteStmtString)
+        deleteStmt.setInt(1,userID)
+        deleteStmt.executeUpdate();
+
+        con.autoCommit = false
+        val stmtString = """
+            INSERT INTO inventoryItems
+            (userID,inventoryType,serializedItemStack,itemSlot)
+            VALUES (?,?,?,?)
+            
+        """.trimIndent()
+        val stmt = con.prepareStatement(stmtString)
+        //save all normal items
+        val items = player.inventory.contents
+        for((index,item) in items.withIndex()){
+            val serializedItem = item?.serializeAsBytes() ?: continue
+            stmt.setInt(1,userID)
+            stmt.setString(2,"inventory")
+            stmt.setBytes(3,serializedItem)
+            stmt.setInt(4,index)
+            stmt.addBatch()
+        }
+        stmt.executeBatch()
+        con.commit()
+        con.autoCommit = true
+
+
+
+
+        return true
+    }
 
     fun updatePlayerEnderChest(player: Player){}
 
