@@ -57,25 +57,25 @@ class LogInCommand:CommandExecutor {
         //temp
         player.sendMessage("§aLogged in to account ${args[0]}")
 
-        //TODO REMOVE ONLY FOR TESTING
-        player.inventory.addItem(ItemStack(Material.DIAMOND_HELMET,1))
 
-
-        return true
 
         //load player inventory data
         val inventoryItems = controller.getInventory(player)
-        val enderChestData = controller.getEnderChest(player)
+
+
 
         for(itemData in inventoryItems){
             player.inventory.setItem(itemData.first,itemData.second)
         }
+
+        val enderChestData = controller.getEnderChest(player)
+
         for(itemData in enderChestData){
             player.enderChest.setItem(itemData.first,itemData.second)
         }
 
 
-
+        return true
 
         //load tames data
         val tameData =controller.getUsersTames(player);

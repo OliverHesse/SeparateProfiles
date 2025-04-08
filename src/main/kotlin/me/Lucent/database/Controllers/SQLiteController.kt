@@ -3,6 +3,7 @@ package me.Lucent.database.Controllers
 import at.favre.lib.crypto.bcrypt.BCrypt
 import me.Lucent.separateProfiles
 import org.bukkit.Location
+import org.bukkit.entity.Item
 import org.bukkit.entity.Player
 import org.bukkit.entity.Tameable
 import org.bukkit.inventory.ItemStack
@@ -14,6 +15,63 @@ import java.util.*
 class SQLiteController {
 
     //functions used to retrieve data from db
+
+    private fun getUserID(player: Player):Int{
+        val username = separateProfiles.playerNameMap[player]
+        if(username == null){
+            separateProfiles.logger.severe("unable to update inventory for player ${player.displayName()} not logged in")
+            return -1;
+        }
+
+        val con = separateProfiles.databaseHandler.sqlConnection
+        //get userId
+        val selectStmtString = """
+            SELECT id FROM users WHERE username = ?
+        """.trimIndent()
+        val selectStmt = con.prepareStatement(selectStmtString);
+        selectStmt.setString(1,username)
+        val rs = selectStmt.executeQuery();
+        if(!rs.next()) throw NoSuchElementException("no id found for player $username")
+
+
+        return rs.getInt(1)
+    }
+
+    private fun getInventoryOfType(player: Player,type:String):List<Pair<Int,ItemStack>>{
+        val userID = this.getUserID(player);
+        val stmtSelectString = """
+            SELECT serializedItemStack,itemSlot
+            FROM inventoryItems
+            WHERE userID = ? AND inventoryType = ?
+        """.trimIndent()
+        val stmt =  separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtSelectString)
+        stmt.setInt(1,userID)
+        stmt.setString(2,type)
+        val rs = stmt.executeQuery();
+        val mutList = mutableListOf<Pair<Int,ItemStack>>()
+        while(rs.next()){
+            val slot = rs.getInt(2)
+            val itemBytes = rs.getBytes(1)
+            val itemStack = ItemStack.deserializeBytes(itemBytes)
+            mutList.add(Pair(slot,itemStack))
+        }
+        return mutList
+    }
+
+    private fun clearInventoryDataOfType(player: Player,type: String){
+        val userID = this.getUserID(player)
+        val con = separateProfiles.databaseHandler.sqlConnection
+        val deleteStmtString = """
+            DELETE FROM inventoryItems
+            WHERE userID = ? AND inventoryType = ?
+        """.trimIndent()
+        val deleteStmt = con.prepareStatement(deleteStmtString)
+        deleteStmt.setInt(1,userID)
+        deleteStmt.setString(2,type)
+        deleteStmt.executeUpdate();
+
+    }
+
     //TODO Combine into one statement to reduce calls
     //TODO store that data in a playerSaveDataClass
     fun getUserLastLocation(username: String):Location?{
@@ -89,16 +147,15 @@ class SQLiteController {
         return emptyList()
     }
 
-
     //TODO IMPLEMENT
     fun getInventory(player: Player):List<Pair<Int,ItemStack>>{
-        return emptyList()
+        return this.getInventoryOfType(player,"inventory")
     }
 
 
     //TODO IMPLEMENT
     fun getEnderChest(player:Player):List<Pair<Int, ItemStack>>{
-        return emptyList()
+        return this.getInventoryOfType(player,"enderchest")
     }
 
     //functions used for verification
@@ -151,41 +208,12 @@ class SQLiteController {
     //function used to update db
 
 
-    //slot 36-39 is armour. slot 40 is off hand
+    //slot 36-39 is armour. slot 40 is of hand
     fun updatePlayerInventory(player: Player):Boolean{
-        /*
-        *     userID INTEGER NOT NULL,
-                inventoryType TEXT NOT NULL,
-                serializedItemStack BLOB NOT NULL,
-                itemSlot INTEGER NOT NULL,
-                FOREIGN KEY(userID) REFERENCES users(id)
-            *
-         */
-        val username = separateProfiles.playerNameMap[player]
-        if(username == null){
-            separateProfiles.logger.severe("unable to update inventory for player ${player.displayName()} not logged in")
-            return false;
-        }
 
+        val userID = this.getUserID(player)
         val con = separateProfiles.databaseHandler.sqlConnection
-        //get userId
-        val selectStmtString = """
-            SELECT id FROM users WHERE username = ?
-        """.trimIndent()
-        val selectStmt = con.prepareStatement(selectStmtString);
-        selectStmt.setString(1,username)
-        val rs = selectStmt.executeQuery();
-        if(!rs.next()) throw NoSuchElementException("no id found for player $username")
-
-        val userID = rs.getInt(1)
-
-        val deleteStmtString = """
-            DELETE FROM inventoryItems
-            WHERE userID = ? AND inventoryType = 'inventory'
-        """.trimIndent()
-        val deleteStmt = con.prepareStatement(deleteStmtString)
-        deleteStmt.setInt(1,userID)
-        deleteStmt.executeUpdate();
+        this.clearInventoryDataOfType(player,"inventory")
 
         con.autoCommit = false
         val stmtString = """
@@ -209,13 +237,38 @@ class SQLiteController {
         con.commit()
         con.autoCommit = true
 
-
-
-
         return true
     }
 
-    fun updatePlayerEnderChest(player: Player){}
+    fun updatePlayerEnderChest(player: Player):Boolean{
+        val userID = this.getUserID(player)
+        val con = separateProfiles.databaseHandler.sqlConnection
+        this.clearInventoryDataOfType(player,"enderchest")
+
+        con.autoCommit = false
+        val stmtString = """
+            INSERT INTO inventoryItems
+            (userID,inventoryType,serializedItemStack,itemSlot)
+            VALUES (?,?,?,?)
+            
+        """.trimIndent()
+        val stmt = con.prepareStatement(stmtString)
+        //save all normal items
+        val items = player.enderChest.contents
+        for((index,item) in items.withIndex()){
+            val serializedItem = item?.serializeAsBytes() ?: continue
+            stmt.setInt(1,userID)
+            stmt.setString(2,"enderchest")
+            stmt.setBytes(3,serializedItem)
+            stmt.setInt(4,index)
+            stmt.addBatch()
+        }
+        stmt.executeBatch()
+        con.commit()
+        con.autoCommit = true
+
+        return true
+    }
 
     fun createNewUser(player:Player,username: String,password: String):Boolean{
         val random: SecureRandom = SecureRandom()

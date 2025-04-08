@@ -35,9 +35,13 @@ class PlayerListener:Listener {
         if(!separateProfiles.databaseHandler.controller.updateExistingUser(e.player)){
             separateProfiles.logger.severe("Unable to update basic user info for player ${separateProfiles.playerNameMap[e.player]}")
         }
-        //TODO save player inventory
+
         if(!separateProfiles.databaseHandler.controller.updatePlayerInventory(e.player)){
             separateProfiles.logger.severe("Unable to save inventory for player ")
+        }
+
+        if(!separateProfiles.databaseHandler.controller.updatePlayerEnderChest(e.player)){
+            separateProfiles.logger.severe("Unable to save enderchest for player ")
         }
 
         separateProfiles.playerNameMap.remove(e.player)

@@ -9,7 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin
 
 
 //TODO Current Task:
-//TODO save player inventory
+//TODO save Tames when tamed(i have to wait till i get home for this)
 
 
 
