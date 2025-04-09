@@ -9,3 +9,5 @@ commands:
     description: logs a user in
   signup:
     description: create a new user
+  logout:
+    description: logs a user out

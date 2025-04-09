@@ -23,7 +23,16 @@ class LogInCommand:CommandExecutor {
             player.sendMessage("§cUsage: /login <username> <password>")
             return true
         }
+
         separateProfiles.logger.info("Player is trying to log into ${args[0]}")
+
+        if(separateProfiles.isLoggedIn(args[0])){
+            separateProfiles.logger.info("someone is already logged into ${args[0]}")
+            player.sendMessage("§cSomeone is already Logged in to account ${args[0]}")
+            return true
+
+        }
+
         val controller = separateProfiles.databaseHandler.controller
         if(!controller.verifyUser(args[0],args[1])){
             player.sendMessage("§cUsername or password incorrect")

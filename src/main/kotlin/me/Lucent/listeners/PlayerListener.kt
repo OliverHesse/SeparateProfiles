@@ -10,6 +10,7 @@ import org.bukkit.entity.Tameable
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityTameEvent
+import org.bukkit.event.player.PlayerInteractEntityEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
 
@@ -34,29 +35,7 @@ class PlayerListener:Listener {
     @EventHandler
     fun onPlayerLeave(e:PlayerQuitEvent){
 
-        val controller = separateProfiles.databaseHandler.controller
-        if(!controller.updateExistingUser(e.player)){
-            separateProfiles.logger.severe("Unable to update basic user info for player ${separateProfiles.playerNameMap[e.player]}")
-        }
-
-        if(!controller.updatePlayerInventory(e.player)){
-            separateProfiles.logger.severe("Unable to save inventory for player ")
-        }
-
-        if(!controller.updatePlayerEnderChest(e.player)){
-            separateProfiles.logger.severe("Unable to save enderchest for player ")
-        }
-        //remove any "invalid tames
-        controller.removeInvalidTames(e.player);
-
-        //set player tame owner to null
-        val tames = controller.getUsersTames(e.player)
-        for(tameData in tames){
-            val tame = PlayerDataFunctions.getTame(e.player,tameData.second,tameData.first)!!
-            tame.owner = null
-
-        }
-        separateProfiles.playerNameMap.remove(e.player)
+        PlayerDataFunctions.logOutPlayer(e.player)
 
     }
 
@@ -68,5 +47,11 @@ class PlayerListener:Listener {
         separateProfiles.databaseHandler.controller.addTame(e.owner as Player,e.entity as Tameable)
 
         separateProfiles.logger.info("Player ${separateProfiles.playerNameMap[e.owner]} tamed a ${e.entityType.name}")
+    }
+
+
+    @EventHandler
+    fun onEntityInteract(e:PlayerInteractEntityEvent){
+        separateProfiles.logger.info("player tried to interact with: ${e.rightClicked}")
     }
 }

@@ -1,6 +1,7 @@
 package me.Lucent
 
 import me.Lucent.commands.LogInCommand
+import me.Lucent.commands.LogOutCommand
 import me.Lucent.commands.SignUpCommand
 import me.Lucent.database.DatabaseHandler
 import me.Lucent.listeners.PlayerListener
@@ -9,7 +10,8 @@ import org.bukkit.plugin.java.JavaPlugin
 
 
 //TODO Current Task:
-//TODO save Tames when tamed(i have to wait till i get home for this)
+//TODO add logout feature
+//TODO fix bugs
 
 
 
@@ -20,7 +22,12 @@ class SeparateProfiles : JavaPlugin() {
     lateinit var databaseHandler: DatabaseHandler
     val playerNameMap:HashMap<Player,String> = HashMap()
 
-
+    fun isLoggedIn(username:String):Boolean{
+        for(name in playerNameMap.values){
+            if (name == username) return true;
+        }
+        return false
+    }
 
 
     override fun onEnable() {
@@ -31,6 +38,7 @@ class SeparateProfiles : JavaPlugin() {
         server.pluginManager.registerEvents(PlayerListener(),this)
         getCommand("signup")!!.setExecutor(SignUpCommand())
         getCommand("login")!!.setExecutor(LogInCommand())
+        getCommand("logout")!!.setExecutor(LogOutCommand())
         // Plugin startup logic
     }
 
