@@ -1,5 +1,6 @@
 package me.Lucent.commands
 
+import me.Lucent.PlayerDataFunctions
 import me.Lucent.separateProfiles
 import net.kyori.adventure.text.Component
 import org.bukkit.GameMode
@@ -52,7 +53,7 @@ class LogInCommand:CommandExecutor {
 
 
         player.walkSpeed = 0.1f
-        player.gameMode = GameMode.SURVIVAL;
+        player.gameMode = GameMode.CREATIVE; //TODO change to survival
         separateProfiles.playerNameMap[player] = args[0]
         //temp
         player.sendMessage("§aLogged in to account ${args[0]}")
@@ -75,28 +76,18 @@ class LogInCommand:CommandExecutor {
         }
 
 
-        return true
 
+        //first remove invalid tames
+        controller.removeInvalidTames(player)
         //load tames data
         val tameData =controller.getUsersTames(player);
 
-        for(tame in tameData){
-            val typeString = tame.first
-            val tameID = tame.second
+        for(tameData in tameData){
 
-            //i will need to loop through all worlds till i get a match
-            //there is potential for there to be 2 wolves with the same ID but ill think of a fix later
-            var found = false
-            for(world in separateProfiles.server.worlds){
-                val entity = world.getEntity(tameID) ?: continue
-                if(entity.type != EntityType.valueOf(typeString)) continue
-                found = true
-                (entity as Tameable).owner = player
-            }
-            if(found) {
-                player.sendMessage("§cProblem loading tames")
-                separateProfiles.logger.severe("Problem loading tames for player with username ${args[0]}")
-            }
+            val tame = PlayerDataFunctions.getTame(player, tameData.second,tameData.first)!!
+
+            tame.owner = player;
+            separateProfiles.logger.info("Player ${args[0]} tame of type ${tameData.first} has been loaded")
         }
 
 

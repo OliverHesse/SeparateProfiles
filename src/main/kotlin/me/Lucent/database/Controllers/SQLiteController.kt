@@ -1,8 +1,10 @@
 package me.Lucent.database.Controllers
 
 import at.favre.lib.crypto.bcrypt.BCrypt
+import me.Lucent.PlayerDataFunctions
 import me.Lucent.separateProfiles
 import org.bukkit.Location
+import org.bukkit.entity.EntityType
 import org.bukkit.entity.Item
 import org.bukkit.entity.Player
 import org.bukkit.entity.Tameable
@@ -143,17 +145,28 @@ class SQLiteController {
 
     //TODO IMPLEMENT
     fun getUsersTames(player: Player):List<Pair<String,UUID>>{
-
-        return emptyList()
+        val userID = this.getUserID(player);
+        val stmtString = """
+            SELECT tameID,tameEntityType FROM tames
+            WHERE userID = ?
+        """.trimIndent()
+        val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtString)
+        stmt.setInt(1,userID);
+        val rs = stmt.executeQuery();
+        val mutList = mutableListOf<Pair<String,UUID>>()
+        while(rs.next()){
+            mutList.add(Pair(rs.getString(2), UUID.fromString(rs.getString(1))));
+        }
+        return mutList
     }
 
-    //TODO IMPLEMENT
+
     fun getInventory(player: Player):List<Pair<Int,ItemStack>>{
         return this.getInventoryOfType(player,"inventory")
     }
 
 
-    //TODO IMPLEMENT
+
     fun getEnderChest(player:Player):List<Pair<Int, ItemStack>>{
         return this.getInventoryOfType(player,"enderchest")
     }
@@ -363,11 +376,58 @@ class SQLiteController {
 
     }
 
-    fun addTame(tame: Tameable){}
+    fun addTame(player: Player,tame:Tameable){
 
-    fun removeInvalidTames(player: Player){}
+        val stmtString = """
+            INSERT INTO tames
+            (userID,tameID,tameEntityType)
+            VALUES
+            (?,?,?)
+        """.trimIndent()
+        val stmt = separateProfiles.databaseHandler.sqlConnection.prepareStatement(stmtString)
+        stmt.setInt(1,this.getUserID(player))
+        stmt.setString(2,tame.uniqueId.toString())
+        stmt.setString(3,tame.type.toString());
+        stmt.executeUpdate();
+
+    }
+
+    //check if tame is "alive" or still tamed
+    fun removeInvalidTames(player: Player){
+        val con = separateProfiles.databaseHandler.sqlConnection
+        val id = this.getUserID(player)
+        val stmtSelectString = """
+            SELECT tameID,tameEntityType FROM tames WHERE userID = ?
+        """.trimIndent()
+        val selectStmt = con.prepareStatement(stmtSelectString)
+        selectStmt.setInt(1,id)
+
+        con.autoCommit = false
+        val stmtDeleteString = """
+            DELETE FROM tames WHERE userID = ? AND tameID = ?
+        """.trimIndent()
+        val deleteStmt = con.prepareStatement(stmtDeleteString)
+        deleteStmt.setInt(1,id)
+        val rs = selectStmt.executeQuery();
+        while(rs.next()){
+            val tameID = rs.getString(1)
+            val type = rs.getString(2)
+            if(PlayerDataFunctions.getTame(player, UUID.fromString(tameID),type) != null) continue;
+
+            deleteStmt.setString(2,tameID)
+            deleteStmt.addBatch();
+
+        }
+        deleteStmt.executeBatch();
+        con.commit();
+        con.autoCommit = true;
+
+
+    }
 
     //for now does not salt hashes
+    //TODO Consider removing primary key for tames and items. the key is pointless and items are removed constantly
+    //TODO so id value would rocket up on big servers.would never reach max value but smth to conisder
     fun createTables(){
 
         val userTable = """

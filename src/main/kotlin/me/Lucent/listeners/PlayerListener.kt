@@ -1,10 +1,12 @@
 package me.Lucent.listeners
 
+import me.Lucent.PlayerDataFunctions
 import me.Lucent.separateProfiles
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextColor
 import org.bukkit.GameMode
 import org.bukkit.entity.Player
+import org.bukkit.entity.Tameable
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityTameEvent
@@ -32,18 +34,28 @@ class PlayerListener:Listener {
     @EventHandler
     fun onPlayerLeave(e:PlayerQuitEvent){
 
-        if(!separateProfiles.databaseHandler.controller.updateExistingUser(e.player)){
+        val controller = separateProfiles.databaseHandler.controller
+        if(!controller.updateExistingUser(e.player)){
             separateProfiles.logger.severe("Unable to update basic user info for player ${separateProfiles.playerNameMap[e.player]}")
         }
 
-        if(!separateProfiles.databaseHandler.controller.updatePlayerInventory(e.player)){
+        if(!controller.updatePlayerInventory(e.player)){
             separateProfiles.logger.severe("Unable to save inventory for player ")
         }
 
-        if(!separateProfiles.databaseHandler.controller.updatePlayerEnderChest(e.player)){
+        if(!controller.updatePlayerEnderChest(e.player)){
             separateProfiles.logger.severe("Unable to save enderchest for player ")
         }
+        //remove any "invalid tames
+        controller.removeInvalidTames(e.player);
 
+        //set player tame owner to null
+        val tames = controller.getUsersTames(e.player)
+        for(tameData in tames){
+            val tame = PlayerDataFunctions.getTame(e.player,tameData.second,tameData.first)!!
+            tame.owner = null
+
+        }
         separateProfiles.playerNameMap.remove(e.player)
 
     }
@@ -51,9 +63,10 @@ class PlayerListener:Listener {
 
     @EventHandler
     fun onPlayerTameEntity(e: EntityTameEvent){
-        if(e.entity !is Player) return
+        if(e.owner !is Player) return
+        //player is taming an animal.
+        separateProfiles.databaseHandler.controller.addTame(e.owner as Player,e.entity as Tameable)
 
-
-
+        separateProfiles.logger.info("Player ${separateProfiles.playerNameMap[e.owner]} tamed a ${e.entityType.name}")
     }
 }
